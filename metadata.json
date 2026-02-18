@@ -1,0 +1,5 @@
+{
+  "name": "OpenCLAW Mission Control",
+  "description": "A local-first, cyberpunk-styled dashboard for managing autonomous AI agents, memory, and task workflows.",
+  "requestFramePermissions": []
+}
