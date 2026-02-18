@@ -31,45 +31,10 @@ To upgrade my own dashboard, I should edit the React components in the /pages di
 `
     },
     {
-      name: 'User_Preferences.md',
-      type: 'md',
-      lastModified: new Date().toISOString(),
-      content: `# User Preferences
-
-- **Tone:** Professional but witty.
-- **Goals:** Automate daily news summary, optimize cloud spend.
-- **Forbidden Topics:** Crypto speculation, political debates.
-`
-    },
-    {
-      name: 'Business_Goals.md',
-      type: 'md',
-      lastModified: new Date().toISOString(),
-      content: `# Q1 Objectives
-
-1. Launch "OpenCLAW" public beta.
-2. Reduce inference costs by 30%.
-3. Reach 10k stars on GitHub.
-`
-    },
-    {
-      name: 'Journal_Logs.md',
-      type: 'md',
-      lastModified: new Date().toISOString(),
-      content: `# Daily Logs
-
-**2023-10-24:** Initialized system. Agents imply high latency on reasoning tasks.
-**2023-10-25:** Refactored memory module.
-`
-    },
-    {
       name: 'active_sessions.json',
       type: 'json',
       lastModified: new Date().toISOString(),
-      content: JSON.stringify([
-        { id: "sess_01", taskId: "t1", agentName: "Claude Opus", model: "claude-3-opus", status: "reasoning", tokensUsed: 4500, currentCost: 0.15, startedAt: "10:42:00" },
-        { id: "sess_02", taskId: "t4", agentName: "CodeEx", model: "gpt-4-turbo", status: "generating", tokensUsed: 1200, currentCost: 0.04, startedAt: "10:45:30" }
-      ])
+      content: JSON.stringify([])
     },
     {
       name: 'settings.json',
@@ -95,32 +60,19 @@ To upgrade my own dashboard, I should edit the React components in the /pages di
       name: 'kanban_tasks.json',
       type: 'json',
       lastModified: new Date().toISOString(),
-      content: JSON.stringify([
-        { id: 't1', title: 'Refactor Auth Module', status: 'in-progress', assignedTo: 'CodeEx', priority: 'high', tags: ['security', 'backend'] },
-        { id: 't2', title: 'Write Newsletter Draft', status: 'review', assignedTo: 'Claude Opus', priority: 'medium', tags: ['content'] },
-        { id: 't3', title: 'Optimize Database Indexing', status: 'backlog', assignedTo: 'Gemini Flash', priority: 'low', tags: ['db'] },
-        { id: 't4', title: 'Update Landing Page Assets', status: 'done', assignedTo: 'CodeEx', priority: 'medium', tags: ['frontend'] },
-        { id: 't5', title: 'Research Competitor Pricing', status: 'backlog', assignedTo: 'Perplexity', priority: 'low', tags: ['research'] }
-      ])
+      content: JSON.stringify([])
     },
     {
       name: 'approvals.json',
       type: 'json',
       lastModified: new Date().toISOString(),
-      content: JSON.stringify([
-        { id: '1', type: 'tweet', requestedBy: 'Rex', status: 'pending', content: "Just deployed OpenCLAW v1.0! 🚀 #AI #Agents #BuildInPublic" },
-        { id: '2', type: 'email', requestedBy: 'Muddy', status: 'pending', content: "Subject: Q1 Update\n\nHi Team,\n\nWe hit 80% of our goals this week. The new memory module is reducing context windows by 40%." },
-        { id: '3', type: 'deploy', requestedBy: 'CodeEx', status: 'pending', content: "git push origin main\n> feat: update dashboard layout\n> fix: memory leak in fileSystem.ts" }
-      ])
+      content: JSON.stringify([])
     },
     {
       name: 'console_history.json',
       type: 'json',
       lastModified: new Date().toISOString(),
-      content: JSON.stringify([
-        { id: "c1", sender: "user", text: "Status report on the landing page update?", timestamp: "10:30:00" },
-        { id: "c2", sender: "agent", agentName: "Muddy", text: "The update is 90% complete. CodeEx is finalizing the CSS assets. Waiting for your approval on the new copy.", timestamp: "10:30:05" }
-      ])
+      content: JSON.stringify([])
     }
   ];
 

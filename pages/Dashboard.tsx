@@ -4,17 +4,10 @@ import { LogEntry, CronJob } from '../types';
 
 const Dashboard: React.FC = () => {
   const [logs] = useState<LogEntry[]>([
-    { id: '1', timestamp: '10:42:01', agent: 'System', message: 'Syncing local memory...', type: 'info' },
-    { id: '2', timestamp: '10:42:05', agent: 'Claude Opus', message: 'Analyzing "Project Titan" requirements.', type: 'info' },
-    { id: '3', timestamp: '10:42:12', agent: 'Gemini Flash', message: 'Summarized 15 news articles.', type: 'success' },
-    { id: '4', timestamp: '10:43:00', agent: 'CodeEx', message: 'Deploying hotfix to staging.', type: 'warning' },
+    { id: '1', timestamp: new Date().toLocaleTimeString(), agent: 'System', message: 'Mission Control Online.', type: 'info' }
   ]);
 
-  const [cronJobs, setCronJobs] = useState<CronJob[]>([
-    { id: 'c1', name: 'Morning Lab Brief', schedule: '08:00 AM', lastRun: '2 hours ago', nextRun: '22 hours', enabled: true, department: 'Research' },
-    { id: 'c2', name: 'Nightly $1B Research', schedule: '03:00 AM', lastRun: '7 hours ago', nextRun: '17 hours', enabled: true, department: 'Growth' },
-    { id: 'c3', name: 'Git Backup', schedule: '05:00 AM', lastRun: '5 hours ago', nextRun: '19 hours', enabled: true, department: 'DevOps' },
-  ]);
+  const [cronJobs, setCronJobs] = useState<CronJob[]>([]);
 
   const [runningJob, setRunningJob] = useState<string | null>(null);
 
@@ -35,7 +28,7 @@ const Dashboard: React.FC = () => {
       <div className="flex justify-between items-end">
         <div>
           <h2 className="text-3xl font-bold text-white mb-1">Good Morning, Human.</h2>
-          <p className="text-gray-400">System operating at 98% efficiency. 12 active threads.</p>
+          <p className="text-gray-400">System online. Waiting for agent input.</p>
         </div>
         <div className="flex gap-4">
             <div className="px-4 py-2 bg-gray-900 border border-gray-800 rounded-lg flex items-center gap-2 text-neon-green text-sm font-mono">
@@ -47,10 +40,10 @@ const Dashboard: React.FC = () => {
 
       {/* KPI Cards */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <KpiCard title="Active Sessions" value="12" icon={Activity} color="text-neon-blue" sub="3 idle" />
-        <KpiCard title="Est. Cost (24h)" value="$4.32" icon={DollarSign} color="text-neon-green" sub="+12% vs yesterday" />
-        <KpiCard title="Tokens Used" value="1.2M" icon={Database} color="text-neon-purple" sub="Claude Opus heavy" />
-        <KpiCard title="CPU Load" value="34%" icon={Cpu} color="text-neon-amber" sub="Local Llama inference" />
+        <KpiCard title="Active Sessions" value="0" icon={Activity} color="text-neon-blue" sub="System Idle" />
+        <KpiCard title="Est. Cost (24h)" value="$0.00" icon={DollarSign} color="text-neon-green" sub="Flat" />
+        <KpiCard title="Tokens Used" value="0" icon={Database} color="text-neon-purple" sub="No activity" />
+        <KpiCard title="CPU Load" value="1%" icon={Cpu} color="text-neon-amber" sub="Standby" />
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 h-96">
@@ -85,7 +78,7 @@ const Dashboard: React.FC = () => {
                 <h3 className="text-sm font-semibold text-gray-300">Cron Monitor</h3>
             </div>
             <div className="p-2 space-y-2 overflow-y-auto flex-1">
-                {cronJobs.map(job => (
+                {cronJobs.length > 0 ? cronJobs.map(job => (
                     <div key={job.id} className="p-3 bg-gray-950 border border-gray-800 rounded-lg flex items-center justify-between group hover:border-gray-700 transition-all">
                         <div>
                             <div className="text-sm font-medium text-gray-200 flex items-center gap-2">
@@ -114,7 +107,12 @@ const Dashboard: React.FC = () => {
                             </button>
                         </div>
                     </div>
-                ))}
+                )) : (
+                    <div className="h-full flex flex-col items-center justify-center text-gray-500 text-xs">
+                        <Command size={24} className="mb-2 opacity-50" />
+                        No active cron jobs.
+                    </div>
+                )}
             </div>
         </div>
       </div>
