@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from 'react';
-import { Plus, MoreHorizontal, GripVertical, Loader2 } from 'lucide-react';
+import React, { useState, useEffect, memo } from 'react';
+import { Plus, GripVertical, Loader2 } from 'lucide-react';
 
 interface Task {
   id: string;
@@ -7,6 +7,25 @@ interface Task {
   status: 'backlog' | 'in-progress' | 'review' | 'done';
   priority: 'low' | 'medium' | 'high';
 }
+
+// PERFORMANCE: Memoized task card to prevent unnecessary re-renders
+const TaskCard = memo(({ task, onDragStart }: { task: Task; onDragStart: (e: React.DragEvent, taskId: string) => void }) => (
+  <div
+    draggable
+    onDragStart={(e) => onDragStart(e, task.id)}
+    className="bg-gray-900 border border-gray-800 p-4 rounded-lg cursor-grab hover:border-gray-600 transition-colors"
+  >
+    <div className="flex justify-between items-start mb-2">
+      <span className={`text-[10px] uppercase px-2 py-0.5 rounded ${task.priority === 'high' ? 'bg-red-500/10 text-red-500' : 'bg-gray-700/50 text-gray-400'}`}>
+        {task.priority}
+      </span>
+      <GripVertical size={14} className="text-gray-700" />
+    </div>
+    <h4 className="text-gray-200 text-sm">{task.title}</h4>
+  </div>
+));
+
+TaskCard.displayName = 'TaskCard';
 
 const Kanban: React.FC = () => {
   const [tasks, setTasks] = useState<Task[]>([]);
@@ -16,25 +35,30 @@ const Kanban: React.FC = () => {
   const [isAdding, setIsAdding] = useState(false);
 
   useEffect(() => {
-    fetchTasks();
-  }, []);
+    const abortController = new AbortController();
+    let isMounted = true;
 
-  const fetchTasks = async () => {
-    try {
-      const res = await fetch('/api/tasks');
-      const data = await res.json();
-      setTasks(data.map((t: any) => ({
-        id: t.id,
-        title: t.title,
-        status: t.status || 'backlog',
-        priority: t.priority || 'medium'
-      })));
-    } catch (e) {
-      console.error('Failed to fetch tasks:', e);
-    } finally {
-      setLoading(false);
-    }
-  };
+    const fetchTasks = async () => {
+      try {
+        const res = await fetch('/api/tasks', { signal: abortController.signal });
+        const data = await res.json();
+        if (isMounted) {
+          setTasks(data.map((t: any) => ({ id: t.id, title: t.title, status: t.status || 'backlog', priority: t.priority || 'medium' })));
+        }
+      } catch (e) {
+        if (e instanceof Error && e.name === 'AbortError') return;
+        if (isMounted) console.error('Failed to fetch tasks:', e);
+      } finally {
+        if (isMounted) setLoading(false);
+      }
+    };
+
+    fetchTasks();
+    return () => {
+      isMounted = false;
+      abortController.abort();
+    };
+  }, []);
 
   const columns = [
     { id: 'backlog', title: 'Backlog', color: 'text-gray-500' },
@@ -56,10 +80,8 @@ const Kanban: React.FC = () => {
   const handleDrop = async (e: React.DragEvent, status: Task['status']) => {
     e.preventDefault();
     if (!draggedTaskId) return;
-    
     setTasks(prev => prev.map(t => t.id === draggedTaskId ? { ...t, status } : t));
     setDraggedTaskId(null);
-
     try {
       await fetch('/api/tasks', {
         method: 'POST',
@@ -68,7 +90,6 @@ const Kanban: React.FC = () => {
       });
     } catch (e) {
       console.error(e);
-      fetchTasks();
     }
   };
 
@@ -82,7 +103,9 @@ const Kanban: React.FC = () => {
       });
       setNewTaskTitle('');
       setIsAdding(false);
-      fetchTasks();
+      const res = await fetch('/api/tasks');
+      const data = await res.json();
+      setTasks(data.map((t: any) => ({ id: t.id, title: t.title, status: t.status || 'backlog', priority: t.priority || 'medium' })));
     } catch (e) {
       console.error(e);
     }
@@ -104,7 +127,14 @@ const Kanban: React.FC = () => {
 
       {isAdding && (
         <div className="mb-4 flex gap-2">
-          <input value={newTaskTitle} onChange={e => setNewTaskTitle(e.target.value)} placeholder="Task title..." onKeyDown={e => e.key === 'Enter' && addNewTask()} className="flex-1 bg-gray-900 border border-gray-700 text-white px-3 py-2 rounded text-sm" autoFocus />
+          <input
+            value={newTaskTitle}
+            onChange={e => setNewTaskTitle(e.target.value)}
+            placeholder="Task title..."
+            onKeyDown={e => e.key === 'Enter' && addNewTask()}
+            className="flex-1 bg-gray-900 border border-gray-700 text-white px-3 py-2 rounded text-sm"
+            autoFocus
+          />
           <button onClick={addNewTask} className="px-4 py-2 bg-blue-500 text-white rounded text-sm">Add</button>
           <button onClick={() => setIsAdding(false)} className="px-4 py-2 text-gray-400">Cancel</button>
         </div>
@@ -119,13 +149,7 @@ const Kanban: React.FC = () => {
             </div>
             <div className="flex-1 space-y-3 overflow-y-auto">
               {tasks.filter(t => t.status === col.id).map(task => (
-                <div key={task.id} draggable onDragStart={e => handleDragStart(e, task.id)} className="bg-gray-900 border border-gray-800 p-4 rounded-lg cursor-grab hover:border-gray-600">
-                  <div className="flex justify-between items-start mb-2">
-                    <span className={`text-[10px] uppercase px-2 py-0.5 rounded ${task.priority === 'high' ? 'bg-red-500/10 text-red-500' : 'bg-gray-700/50 text-gray-400'}`}>{task.priority}</span>
-                    <GripVertical size={14} className="text-gray-700" />
-                  </div>
-                  <h4 className="text-gray-200 text-sm">{task.title}</h4>
-                </div>
+                <TaskCard key={task.id} task={task} onDragStart={handleDragStart} />
               ))}
             </div>
           </div>
