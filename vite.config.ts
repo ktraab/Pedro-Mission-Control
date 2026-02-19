@@ -8,6 +8,7 @@ const WORKSPACE = '/home/pedro-openclaw/.openclaw/workspace';
 const MEMORY_DIR = path.join(WORKSPACE, 'memory');
 const TASKS_FILE = path.join(WORKSPACE, 'kanban_tasks.json');
 const APPROVALS_FILE = path.join(WORKSPACE, 'approvals.json');
+const OPENCLAW_CONFIG = '/home/pedro-openclaw/.openclaw/openclaw.json';
 
 export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, '.', '');
@@ -294,6 +295,69 @@ export default defineConfig(({ mode }) => {
           res.statusCode = 405;
           res.end(JSON.stringify({ error: 'Method not allowed' }));
         }
+      });
+
+      // Settings API for OpenClaw configuration
+      server.middlewares.use('/api/settings', async (req, res, next) => {
+        if (req.method === 'GET') {
+          try {
+            const config = fs.existsSync(OPENCLAW_CONFIG) 
+              ? JSON.parse(fs.readFileSync(OPENCLAW_CONFIG, 'utf-8'))
+              : {};
+            
+            // Extract real models and agents from config
+            const models: any[] = [];
+            const agents: any[] = [];
+            
+            // Get models from providers
+            if (config.models?.providers) {
+              for (const [provider, pdata] of Object.entries(config.models.providers)) {
+                const p = pdata as any;
+                if (p.models) {
+                  for (const m of p.models) {
+                    models.push({
+                      id: m.id,
+                      name: m.name || m.id,
+                      provider: provider,
+                      contextWindow: m.contextWindow || 0,
+                      maxTokens: m.maxTokens || 0,
+                      reasoning: m.reasoning || false
+                    });
+                  }
+                }
+              }
+            }
+            
+            // Get agent aliases
+            if (config.agents?.defaults?.models) {
+              for (const [modelId, mdata] of Object.entries(config.agents.defaults.models)) {
+                const m = mdata as any;
+                agents.push({
+                  id: modelId,
+                  alias: m.alias,
+                  primary: modelId === config.agents.defaults.model?.primary
+                });
+              }
+            }
+            
+            // Get workspace and limits
+            const settings = {
+              workspace: config.agents?.defaults?.workspace || WORKSPACE,
+              timeoutSeconds: config.agents?.defaults?.timeoutSeconds || 3600,
+              maxConcurrent: config.agents?.defaults?.maxConcurrent || 4,
+              subagentMaxConcurrent: config.agents?.defaults?.subagents?.maxConcurrent || 8,
+              models,
+              agents,
+              primaryModel: config.agents?.defaults?.model?.primary
+            };
+            
+            res.setHeader('Content-Type', 'application/json');
+            res.end(JSON.stringify(settings));
+          } catch (e) {
+            res.statusCode = 500;
+            res.end(JSON.stringify({ error: 'Failed to read settings' }));
+          }
+        } else next();
       });
 
       server.middlewares.use('/api/status', async (req, res, next) => {

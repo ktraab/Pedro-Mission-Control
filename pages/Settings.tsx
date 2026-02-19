@@ -1,216 +1,232 @@
 import React, { useEffect, useState } from 'react';
-import { Save, Brain, Code, Database, PenTool, Cpu, Shield, ShieldAlert, Wrench } from 'lucide-react';
-import { ModelConfig, ToolConfig } from '../types';
-import { fileSystem } from '../lib/fileSystem';
+import { Brain, Cpu, Code, Database, PenTool, RefreshCw, Clock, Users, Folder } from 'lucide-react';
+
+interface OpenClawModel {
+  id: string;
+  name: string;
+  provider: string;
+  contextWindow: number;
+  maxTokens: number;
+  reasoning: boolean;
+}
+
+interface OpenClawAgent {
+  id: string;
+  alias: string;
+  primary: boolean;
+}
+
+interface OpenClawSettings {
+  workspace: string;
+  timeoutSeconds: number;
+  maxConcurrent: number;
+  subagentMaxConcurrent: number;
+  models: OpenClawModel[];
+  agents: OpenClawAgent[];
+  primaryModel: string;
+}
 
 const Settings: React.FC = () => {
-  const [activeTab, setActiveTab] = useState<'models' | 'tools'>('models');
-  const [modelConfigs, setModelConfigs] = useState<ModelConfig[]>([]);
-  const [toolConfigs, setToolConfigs] = useState<ToolConfig[]>([]);
-  const [isSaved, setIsSaved] = useState(false);
+  const [settings, setSettings] = useState<OpenClawSettings | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [activeTab, setActiveTab] = useState<'models' | 'system'>('models');
 
   useEffect(() => {
-    const data = fileSystem.readFile('settings.json');
-    if (data) {
-      try {
-        const parsed = JSON.parse(data);
-        if (parsed.models) setModelConfigs(parsed.models);
-        if (parsed.tools) setToolConfigs(parsed.tools);
-      } catch (e) {
-        console.error("Failed to load settings", e);
-      }
-    }
+    fetchSettings();
   }, []);
 
-  const handleModelChange = (index: number, field: keyof ModelConfig, value: string) => {
-    const newConfigs = [...modelConfigs];
-    // @ts-ignore
-    newConfigs[index][field] = value;
-    setModelConfigs(newConfigs);
-    setIsSaved(false);
+  const fetchSettings = async () => {
+    try {
+      const res = await fetch('/api/settings');
+      if (res.ok) {
+        const data = await res.json();
+        setSettings(data);
+      }
+    } catch (e) {
+      console.error('Failed to load settings', e);
+    } finally {
+      setLoading(false);
+    }
   };
 
-  const toggleTool = (id: string) => {
-    setToolConfigs(prev => prev.map(t => t.id === id ? { ...t, enabled: !t.enabled } : t));
-    setIsSaved(false);
-  };
-  
-  const toggleToolApproval = (id: string) => {
-    setToolConfigs(prev => prev.map(t => t.id === id ? { ...t, requiresApproval: !t.requiresApproval } : t));
-    setIsSaved(false);
+  const getProviderIcon = (provider: string) => {
+    switch (provider) {
+      case 'nvidia-nim': return <Brain size={16} className="text-green-400" />;
+      case 'ollama': return <Cpu size={16} className="text-blue-400" />;
+      default: return <Cpu size={16} />;
+    }
   };
 
-  const saveSettings = () => {
-    const settings = { models: modelConfigs, tools: toolConfigs };
-    fileSystem.writeFile('settings.json', JSON.stringify(settings, null, 2));
-    setIsSaved(true);
-    setTimeout(() => setIsSaved(false), 2000);
+  const getAgentIcon = (alias: string) => {
+    if (alias.includes('kimi')) return <Brain size={16} className="text-purple-400" />;
+    if (alias.includes('dev') || alias.includes('coder')) return <Code size={16} className="text-blue-400" />;
+    if (alias.includes('lib') || alias.includes('phi')) return <Database size={16} className="text-green-400" />;
+    if (alias.includes('think') || alias.includes('qwen')) return <PenTool size={16} className="text-amber-400" />;
+    if (alias.includes('fast') || alias.includes('llama')) return <Cpu size={16} className="text-cyan-400" />;
+    return <Cpu size={16} />;
   };
 
-  const getIcon = (type: string) => {
-    if (type.includes('Strategic')) return <Brain size={18} className="text-purple-500" />;
-    if (type.includes('Coding')) return <Code size={18} className="text-blue-500" />;
-    if (type.includes('Research')) return <Database size={18} className="text-green-500" />;
-    if (type.includes('Creative')) return <PenTool size={18} className="text-pink-500" />;
-    return <Cpu size={18} className="text-gray-500" />;
+  const getAgentRole = (alias: string) => {
+    const roles: Record<string, string> = {
+      'kimi': 'CEO-Alpha (Strategic Planning)',
+      'minimax': 'CEO-Beta (High-level decisions)',
+      'qwen-think': 'The Thinker (Deep Reasoning)',
+      'qwen-sys': 'The SysAdmin (System Tools)',
+      'qwen-dev': 'The Developer (Code/Scripts)',
+      'phi-lib': 'The Librarian (RAG/Docs)',
+      'llama-fast': 'Fast Chat (Quick Tasks)',
+      'gatekeeper': 'Gatekeeper (Triage/Routing)'
+    };
+    return roles[alias] || alias;
   };
+
+  const formatNumber = (n: number) => {
+    if (n >= 1000) return `${(n/1000).toFixed(0)}k`;
+    return n.toString();
+  };
+
+  const formatTimeout = (seconds: number) => {
+    if (seconds >= 3600) return `${seconds/3600}h`;
+    if (seconds >= 60) return `${seconds/60}m`;
+    return `${seconds}s`;
+  };
+
+  if (loading) {
+    return (
+      <div className="flex flex-col items-center justify-center h-full text-gray-500">
+        <div className="w-8 h-8 border-2 border-blue-500 border-t-transparent rounded-full animate-spin mb-4" />
+        <p>Loading OpenClaw configuration...</p>
+      </div>
+    );
+  }
+
+  if (!settings) {
+    return (
+      <div className="flex flex-col items-center justify-center h-full text-gray-500">
+        <p>Failed to load settings.</p>
+        <button onClick={fetchSettings} className="mt-4 px-4 py-2 bg-gray-800 rounded text-sm hover:bg-gray-700">
+          <RefreshCw size={14} className="inline mr-2" />
+          Retry
+        </button>
+      </div>
+    );
+  }
 
   return (
-    <div className="max-w-4xl mx-auto p-8 h-full flex flex-col animate-in fade-in duration-500">
+    <div className="max-w-5xl mx-auto p-8 h-full flex flex-col animate-in fade-in duration-500">
       <div className="flex justify-between items-center mb-8">
         <div>
           <h2 className="text-2xl font-bold text-white mb-1">System Configuration</h2>
-          <p className="text-gray-400 text-sm">Manage agent brains, muscles, and tools.</p>
+          <p className="text-gray-400 text-sm">Live OpenClaw configuration from ~/.openclaw/openclaw.json</p>
         </div>
-        <button 
-          onClick={saveSettings}
-          className={`flex items-center gap-2 px-6 py-2.5 rounded-lg text-sm font-bold transition-all shadow-lg ${
-            isSaved 
-              ? 'bg-green-500 text-white' 
-              : 'bg-neon-blue text-white hover:bg-blue-600 shadow-blue-900/20'
-          }`}
-        >
-          <Save size={18} />
-          {isSaved ? 'Saved!' : 'Save Config'}
+        <button onClick={fetchSettings} className="flex items-center gap-2 px-4 py-2 rounded-lg bg-gray-800 text-gray-300 text-sm hover:bg-gray-700 transition-colors">
+          <RefreshCw size={16} />
+          Refresh
         </button>
       </div>
 
-      {/* Tabs */}
       <div className="flex gap-4 border-b border-gray-800 mb-6">
-        <button 
-            onClick={() => setActiveTab('models')}
-            className={`pb-3 px-2 text-sm font-medium transition-colors border-b-2 ${
-                activeTab === 'models' ? 'border-neon-blue text-white' : 'border-transparent text-gray-500 hover:text-gray-300'
-            }`}
-        >
-            Brains & Muscles
+        <button onClick={() => setActiveTab('models')} className={`pb-3 px-2 text-sm font-medium border-b-2 transition-colors ${ activeTab === 'models' ? 'border-blue-500 text-white' : 'border-transparent text-gray-500 hover:text-gray-300' }`}>
+          Agent Models
         </button>
-        <button 
-            onClick={() => setActiveTab('tools')}
-            className={`pb-3 px-2 text-sm font-medium transition-colors border-b-2 ${
-                activeTab === 'tools' ? 'border-neon-blue text-white' : 'border-transparent text-gray-500 hover:text-gray-300'
-            }`}
-        >
-            Tools & Permissions
+        <button onClick={() => setActiveTab('system')} className={`pb-3 px-2 text-sm font-medium border-b-2 transition-colors ${ activeTab === 'system' ? 'border-blue-500 text-white' : 'border-transparent text-gray-500 hover:text-gray-300' }`}>
+          System Settings
         </button>
       </div>
 
       {activeTab === 'models' ? (
-        <div className="bg-gray-900 border border-gray-800 rounded-xl overflow-hidden animate-in fade-in slide-in-from-bottom-2">
-            <div className="grid grid-cols-12 gap-4 px-6 py-3 bg-gray-950 border-b border-gray-800 text-xs font-semibold text-gray-500 uppercase tracking-wider">
-            <div className="col-span-4">Task Domain</div>
-            <div className="col-span-4">Primary Model</div>
-            <div className="col-span-4">Fallback Model</div>
-            </div>
-
-            <div className="divide-y divide-gray-800">
-            {modelConfigs.map((config, index) => (
-                <div key={index} className="grid grid-cols-12 gap-6 px-6 py-6 items-center hover:bg-gray-800/30 transition-colors">
-                
-                <div className="col-span-4 flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-lg bg-gray-800 flex items-center justify-center border border-gray-700 shadow-sm">
-                    {getIcon(config.taskType)}
+        <div className="space-y-8">
+          <div className="bg-gray-900 border border-gray-800 rounded-xl p-6">
+            <h3 className="text-lg font-semibold text-white mb-4 flex items-center gap-2">
+              <Users size={18} className="text-blue-400" />
+              Your Agent Organization
+            </h3>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {settings.agents.map((agent) => (
+                <div key={agent.id} className={`p-4 rounded-lg border ${agent.primary ? 'bg-blue-900/20 border-blue-500/50' : 'bg-gray-800/50 border-gray-800'}`}>
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-lg bg-gray-800 flex items-center justify-center border border-gray-700">
+                      {getAgentIcon(agent.alias)}
                     </div>
-                    <div>
-                        <div className="font-medium text-gray-200">{config.taskType}</div>
-                        <div className="text-xs text-gray-500 mt-0.5">Automated Workflows</div>
+                    <div className="flex-1">
+                      <div className="flex items-center gap-2">
+                        <span className="font-medium text-white">{agent.alias}</span>
+                        {agent.primary && <span className="text-[10px] px-1.5 py-0.5 rounded bg-blue-500 text-white">PRIMARY</span>}
+                      </div>
+                      <div className="text-xs text-gray-400">{getAgentRole(agent.alias)}</div>
                     </div>
+                    <div className="text-xs text-gray-500 font-mono">{agent.id.split('/').pop()}</div>
+                  </div>
                 </div>
-
-                <div className="col-span-4">
-                    <select 
-                    value={config.selectedModel}
-                    onChange={(e) => handleModelChange(index, 'selectedModel', e.target.value)}
-                    className="w-full bg-gray-950 border border-gray-700 text-gray-200 text-sm rounded-lg px-3 py-2.5 focus:outline-none focus:border-neon-blue focus:ring-1 focus:ring-neon-blue"
-                    >
-                    <option>Claude 3 Opus</option>
-                    <option>Claude 3.5 Sonnet</option>
-                    <option>GPT-4</option>
-                    <option>GPT-4-Turbo</option>
-                    <option>Gemini 1.5 Pro</option>
-                    <option>Perplexity Online</option>
-                    <option>Local Llama 3</option>
-                    </select>
-                </div>
-
-                <div className="col-span-4">
-                    <select 
-                    value={config.fallbackModel}
-                    onChange={(e) => handleModelChange(index, 'fallbackModel', e.target.value)}
-                    className="w-full bg-gray-950 border border-gray-700 text-gray-400 text-sm rounded-lg px-3 py-2.5 focus:outline-none focus:border-gray-500"
-                    >
-                    <option value="">None</option>
-                    <option>GPT-3.5 Turbo</option>
-                    <option>Gemini 1.5 Flash</option>
-                    <option>CodeLlama 70B</option>
-                    <option>Mistral Medium</option>
-                    </select>
-                </div>
-
-                </div>
-            ))}
+              ))}
             </div>
+          </div>
+
+          <div className="bg-gray-900 border border-gray-800 rounded-xl p-6">
+            <h3 className="text-lg font-semibold text-white mb-4 flex items-center gap-2">
+              <Cpu size={18} className="text-green-400" />
+              Available Models ({settings.models.length})
+            </h3>
+            <div className="overflow-x-auto">
+              <table className="w-full text-left text-sm">
+                <thead className="bg-gray-950 text-gray-500 uppercase text-xs font-mono">
+                  <tr>
+                    <th className="px-4 py-3">Model</th>
+                    <th className="px-4 py-3">Provider</th>
+                    <th className="px-4 py-3">Context</th>
+                    <th className="px-4 py-3">Max Tokens</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-800">
+                  {settings.models.map((model) => (
+                    <tr key={model.id} className="hover:bg-gray-800/30">
+                      <td className="px-4 py-3 flex items-center gap-2">
+                        {getProviderIcon(model.provider)}
+                        <span className="text-white">{model.name}</span>
+                      </td>
+                      <td className="px-4 py-3 text-gray-400">{model.provider}</td>
+                      <td className="px-4 py-3 text-gray-400 font-mono">{formatNumber(model.contextWindow)}</td>
+                      <td className="px-4 py-3 text-gray-400 font-mono">{formatNumber(model.maxTokens)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
         </div>
       ) : (
-        <div className="space-y-6 animate-in fade-in slide-in-from-bottom-2">
-            <div className="p-4 bg-amber-900/10 border border-amber-900/30 rounded-lg flex gap-3 text-amber-500 text-sm">
-                <ShieldAlert className="shrink-0" size={20} />
-                <p>Disabling tools here acts as a "hard kill switch". Agents will receive a permission error if they attempt to use a disabled tool.</p>
+        <div className="bg-gray-900 border border-gray-800 rounded-xl p-6 space-y-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div className="p-4 bg-gray-800/50 rounded-lg border border-gray-700">
+              <div className="flex items-center gap-2 mb-2">
+                <Folder size={16} className="text-blue-400" />
+                <span className="text-sm font-medium text-gray-300">Workspace</span>
+              </div>
+              <div className="text-xs text-gray-400 font-mono break-all">{settings.workspace}</div>
             </div>
-
-            <div className="grid grid-cols-1 gap-4">
-                {toolConfigs.map(tool => (
-                    <div key={tool.id} className={`p-4 border rounded-xl flex items-center justify-between transition-all ${
-                        tool.enabled ? 'bg-gray-900 border-gray-800' : 'bg-gray-950 border-gray-800 opacity-60'
-                    }`}>
-                        <div className="flex items-center gap-4">
-                            <div className={`w-10 h-10 rounded-full flex items-center justify-center ${
-                                tool.riskLevel === 'critical' ? 'bg-red-900/20 text-red-500' : 
-                                tool.riskLevel === 'moderate' ? 'bg-amber-900/20 text-amber-500' : 
-                                'bg-blue-900/20 text-blue-500'
-                            }`}>
-                                <Wrench size={18} />
-                            </div>
-                            <div>
-                                <div className="flex items-center gap-2">
-                                    <h3 className="font-bold text-gray-200">{tool.name}</h3>
-                                    <span className={`text-[10px] px-1.5 py-0.5 rounded uppercase font-bold ${
-                                         tool.riskLevel === 'critical' ? 'bg-red-500/10 text-red-500' : 
-                                         tool.riskLevel === 'moderate' ? 'bg-amber-500/10 text-amber-500' : 
-                                         'bg-blue-500/10 text-blue-500'
-                                    }`}>{tool.riskLevel} Risk</span>
-                                </div>
-                                <p className="text-gray-500 text-sm">{tool.description}</p>
-                            </div>
-                        </div>
-
-                        <div className="flex items-center gap-6">
-                            <label className="flex items-center gap-2 cursor-pointer group">
-                                <div className={`w-5 h-5 rounded border flex items-center justify-center transition-colors ${
-                                    tool.requiresApproval ? 'bg-neon-blue border-neon-blue text-black' : 'border-gray-600 bg-transparent'
-                                }`}>
-                                    {tool.requiresApproval && <Shield size={12} />}
-                                    <input type="checkbox" className="hidden" checked={tool.requiresApproval} onChange={() => toggleToolApproval(tool.id)} />
-                                </div>
-                                <span className="text-sm text-gray-400 group-hover:text-gray-300 select-none">Require Approval</span>
-                            </label>
-
-                            <div className="h-8 w-px bg-gray-800"></div>
-
-                            <button 
-                                onClick={() => toggleTool(tool.id)}
-                                className={`w-12 h-6 rounded-full p-1 transition-colors duration-200 ease-in-out ${
-                                    tool.enabled ? 'bg-neon-green' : 'bg-gray-700'
-                                }`}
-                            >
-                                <div className={`w-4 h-4 bg-white rounded-full shadow-sm transform transition-transform duration-200 ${
-                                    tool.enabled ? 'translate-x-6' : 'translate-x-0'
-                                }`} />
-                            </button>
-                        </div>
-                    </div>
-                ))}
+            <div className="p-4 bg-gray-800/50 rounded-lg border border-gray-700">
+              <div className="flex items-center gap-2 mb-2">
+                <Clock size={16} className="text-amber-400" />
+                <span className="text-sm font-medium text-gray-300">Timeout</span>
+              </div>
+              <div className="text-xl font-bold text-white">{formatTimeout(settings.timeoutSeconds)}</div>
             </div>
+            <div className="p-4 bg-gray-800/50 rounded-lg border border-gray-700">
+              <div className="flex items-center gap-2 mb-2">
+                <Users size={16} className="text-green-400" />
+                <span className="text-sm font-medium text-gray-300">Max Concurrent</span>
+              </div>
+              <div className="text-xl font-bold text-white">{settings.maxConcurrent} main</div>
+              <div className="text-xs text-gray-500">{settings.subagentMaxConcurrent} subagents</div>
+            </div>
+            <div className="p-4 bg-gray-800/50 rounded-lg border border-gray-700">
+              <div className="flex items-center gap-2 mb-2">
+                <Brain size={16} className="text-purple-400" />
+                <span className="text-sm font-medium text-gray-300">Primary Model</span>
+              </div>
+              <div className="text-sm font-bold text-white break-all">{settings.primaryModel}</div>
+            </div>
+          </div>
         </div>
       )}
     </div>
