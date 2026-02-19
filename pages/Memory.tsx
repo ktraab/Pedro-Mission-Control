@@ -40,11 +40,11 @@ const Memory: React.FC = () => {
     }
   };
 
-  const selectFile = (file: MemoryFile) => {
+  const selectFile = async (file: MemoryFile) => {
     setSelectedFile(file);
-    setContent(file.preview || '');
     setIsDirty(false);
     setViewMode('read');
+    await fetchFileContent(file.path);
   };
 
   const fetchFileContent = async (path: string) => {
