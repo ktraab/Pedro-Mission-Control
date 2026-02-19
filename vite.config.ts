@@ -189,7 +189,43 @@ export default defineConfig(({ mode }) => {
           }
         });
 
-        server.middlewares.use('/api/status', async (req, res, next) => {
+        // Spawn agent via OpenClaw CLI
+      server.middlewares.use('/api/spawn', async (req, res, next) => {
+        if (req.method === 'POST') {
+          let body = '';
+          req.on('data', chunk => body += chunk);
+          req.on('end', () => {
+            try {
+              const data = JSON.parse(body || '{}');
+              const task = data.task || 'Hello from Mission Control';
+              const label = data.label || 'MC Agent';
+              
+              // Spawn the agent using OpenClaw CLI
+              const output = execSync(
+                `openclaw sessions spawn "${task.replace(/"/g, '\\"')}" --label "${label.replace(/"/g, '\\"')}" --agent-id main --json`,
+                { encoding: 'utf-8', timeout: 30000 }
+              );
+              
+              const result = JSON.parse(output);
+              res.setHeader('Content-Type', 'application/json');
+              res.end(JSON.stringify({ 
+                success: true, 
+                sessionKey: result.sessionKey,
+                agentId: result.agentId 
+              }));
+            } catch (e) {
+              console.error('Spawn error:', e);
+              res.statusCode = 500;
+              res.end(JSON.stringify({ error: 'Failed to spawn agent', details: String(e) }));
+            }
+          });
+        } else {
+          res.statusCode = 405;
+          res.end(JSON.stringify({ error: 'Method not allowed' }));
+        }
+      });
+
+      server.middlewares.use('/api/status', async (req, res, next) => {
           if (req.method !== 'GET') return next();
           try {
             const output = execSync("openclaw status --json 2>/dev/null || echo '{}'", { encoding: 'utf-8' });
