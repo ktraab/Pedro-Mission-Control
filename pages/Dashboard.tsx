@@ -16,20 +16,25 @@ const Dashboard: React.FC = () => {
   const [runningJob, setRunningJob] = useState<string | null>(null);
 
   useEffect(() => {
+    const abortController = new AbortController();
+    let isMounted = true;
+
     const fetchData = async () => {
       try {
         const [cronRes, statusRes] = await Promise.allSettled([
-          fetch('/api/cron'),
-          fetch('/api/status')
+          fetch('/api/cron', { signal: abortController.signal }),
+          fetch('/api/status', { signal: abortController.signal })
         ]);
-
+        
+        if (!isMounted) return;
+        
         if (statusRes.status === 'fulfilled') {
           const status = await statusRes.value.json();
           setActiveSessions(status.sessions?.count || 0);
           const totalTokens = status.sessions?.recent?.reduce((acc: number, s: any) => acc + (s.totalTokens || 0), 0) || 0;
           setTokensUsed(totalTokens);
         }
-
+        
         if (cronRes.status === 'fulfilled') {
           const jobs = await cronRes.value.json();
           const typedJobs: CronJobData[] = jobs.map((j: any) => ({
@@ -53,15 +58,21 @@ const Dashboard: React.FC = () => {
           }
         }
       } catch (e) {
+        if (e instanceof Error && e.name === 'AbortError') return;
         console.error('Dashboard error:', e);
       } finally {
-        setLoading(false);
+        if (isMounted) setLoading(false);
       }
     };
 
     fetchData();
     const interval = setInterval(fetchData, 30000);
-    return () => clearInterval(interval);
+    
+    return () => {
+      isMounted = false;
+      abortController.abort();
+      clearInterval(interval);
+    };
   }, []);
 
   const handleRunJob = async (id: string) => {
@@ -148,7 +159,8 @@ const Dashboard: React.FC = () => {
         <div className="lg:col-span-2 bg-gray-900 border border-gray-800 rounded-xl overflow-hidden flex flex-col">
           <div className="px-4 py-3 border-b border-gray-800 bg-gray-950 flex justify-between items-center">
             <h3 className="text-sm font-semibold text-gray-300 flex items-center gap-2">
-              <Command size={14} /> Live Activity Feed
+              <Command size={14} />
+              Live Activity Feed
             </h3>
             <span className="text-xs text-gray-600 font-mono">{logs.length} entries</span>
           </div>
@@ -162,7 +174,6 @@ const Dashboard: React.FC = () => {
             ))}
           </div>
         </div>
-
         <div className="bg-gray-900 border border-gray-800 rounded-xl overflow-hidden flex flex-col">
           <div className="px-4 py-3 border-b border-gray-800 bg-gray-950">
             <h3 className="text-sm font-semibold text-gray-300">Cron Monitor</h3>
@@ -178,7 +189,11 @@ const Dashboard: React.FC = () => {
                   <div className="text-xs text-gray-500 mt-1 font-mono">{job.enabled ? 'Running' : 'Disabled'} • Last: {formatTime(job.state?.lastRunAtMs)}</div>
                 </div>
                 <div className="opacity-0 group-hover:opacity-100 transition-opacity">
-                  <button onClick={() => handleRunJob(job.id)} disabled={runningJob === job.id} className={`text-xs px-2 py-1 rounded flex items-center gap-1 transition-colors ${runningJob === job.id ? 'bg-blue-900/20 text-blue-400' : 'bg-gray-800 hover:bg-gray-700 text-white'}`}>
+                  <button
+                    onClick={() => handleRunJob(job.id)}
+                    disabled={runningJob === job.id}
+                    className={`text-xs px-2 py-1 rounded flex items-center gap-1 transition-colors ${runningJob === job.id ? 'bg-blue-900/20 text-blue-400' : 'bg-gray-800 hover:bg-gray-700 text-white'}`}
+                  >
                     {runningJob === job.id ? <Loader2 size={10} className="animate-spin" /> : <Play size={10} />}
                     {runningJob === job.id ? 'Running' : 'Run'}
                   </button>

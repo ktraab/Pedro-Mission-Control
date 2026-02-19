@@ -1,30 +1,39 @@
 import React, { useState, useEffect } from 'react';
 import { ApprovalItem } from '../types';
-import { Check, X, Edit3, Send, Terminal, Shield, GitBranch, FileEdit, Mail, Clock } from 'lucide-react';
+import { Check, X, Edit3, Send, Terminal, Shield, GitBranch, FileEdit, Mail, Clock, Loader2 } from 'lucide-react';
 
 const Approvals: React.FC = () => {
   const [items, setItems] = useState<ApprovalItem[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    const abortController = new AbortController();
+    let isMounted = true;
+
+    const fetchApprovals = async () => {
+      try {
+        const res = await fetch('/api/approvals?status=pending', { signal: abortController.signal });
+        if (res.ok) {
+          const data = await res.json();
+          if (isMounted) setItems(data);
+        }
+      } catch (e) {
+        if (e instanceof Error && e.name === 'AbortError') return;
+        if (isMounted) console.error("Failed to load approvals", e);
+      } finally {
+        if (isMounted) setLoading(false);
+      }
+    };
+
     fetchApprovals();
     const interval = setInterval(fetchApprovals, 10000);
-    return () => clearInterval(interval);
-  }, []);
 
-  const fetchApprovals = async () => {
-    try {
-      const res = await fetch('/api/approvals?status=pending');
-      if (res.ok) {
-        const data = await res.json();
-        setItems(data);
-      }
-    } catch (e) {
-      console.error("Failed to load approvals", e);
-    } finally {
-      setLoading(false);
-    }
-  };
+    return () => {
+      isMounted = false;
+      abortController.abort();
+      clearInterval(interval);
+    };
+  }, []);
 
   const handleAction = async (id: string, status: 'approved' | 'rejected') => {
     try {
@@ -33,7 +42,12 @@ const Approvals: React.FC = () => {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ action: 'update', id, status })
       });
-      fetchApprovals();
+      // Refresh after action
+      const res = await fetch('/api/approvals?status=pending');
+      if (res.ok) {
+        const data = await res.json();
+        setItems(data);
+      }
     } catch (e) {
       console.error("Failed to update approval", e);
     }
@@ -76,7 +90,7 @@ const Approvals: React.FC = () => {
   if (loading) {
     return (
       <div className="flex flex-col items-center justify-center h-full text-gray-500">
-        <div className="w-8 h-8 border-2 border-blue-500 border-t-transparent rounded-full animate-spin mb-4" />
+        <Loader2 size={32} className="animate-spin mb-4" />
         <p>Loading approvals...</p>
       </div>
     );
@@ -100,9 +114,7 @@ const Approvals: React.FC = () => {
           <h2 className="text-2xl font-bold text-white">Approval Queue</h2>
           <p className="text-gray-400">Review and authorize agent actions.</p>
         </div>
-        <div className="text-sm text-gray-500">
-          {items.length} pending
-        </div>
+        <div className="text-sm text-gray-500">{items.length} pending</div>
       </div>
       
       <div className="space-y-6 mt-8">

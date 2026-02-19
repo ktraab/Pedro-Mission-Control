@@ -1,5 +1,4 @@
 import React, { useState, useEffect } from 'react';
-import { ActiveSession } from '../types';
 import { Cpu, Activity, Zap, Clock, AlertCircle } from 'lucide-react';
 
 interface RealSession {
@@ -18,28 +17,42 @@ const OrgChart: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
+    const abortController = new AbortController();
+    let isMounted = true;
+
     const fetchData = async () => {
       try {
-        const res = await fetch('/api/sessions');
+        setLoading(true);
+        const res = await fetch('/api/sessions', { signal: abortController.signal });
         if (!res.ok) throw new Error('Failed to fetch sessions');
         const data = await res.json();
-        setSessions(data.sessions || []);
+        if (isMounted) {
+          setSessions(data.sessions || []);
+          setError(null);
+        }
       } catch (e) {
-        setError(e instanceof Error ? e.message : 'Unknown error');
-        console.error('Failed to fetch sessions:', e);
+        if (e instanceof Error && e.name === 'AbortError') return;
+        if (isMounted) {
+          setError(e instanceof Error ? e.message : 'Unknown error');
+          console.error('Failed to fetch sessions:', e);
+        }
       } finally {
-        setLoading(false);
+        if (isMounted) setLoading(false);
       }
     };
 
     fetchData();
     const interval = setInterval(fetchData, 30000);
-    return () => clearInterval(interval);
+
+    return () => {
+      isMounted = false;
+      abortController.abort();
+      clearInterval(interval);
+    };
   }, []);
 
   const totalTokens = sessions.reduce((acc, s) => acc + (s.totalTokens || 0), 0);
   const activeCount = sessions.filter(s => s.kind === 'subagent').length;
-  const otherCount = sessions.filter(s => s.kind === 'other' || s.kind === 'cron').length;
 
   const getStatus = (session: RealSession) => {
     if (session.displayName?.toLowerCase().includes('cron')) return 'scheduled';
@@ -120,9 +133,7 @@ const OrgChart: React.FC = () => {
                     {session.kind}
                   </span>
                 </td>
-                <td className="px-6 py-4 text-gray-300">
-                  {getModelDisplay(session.model)}
-                </td>
+                <td className="px-6 py-4 text-gray-300">{getModelDisplay(session.model)}</td>
                 <td className="px-6 py-4">
                   <span className={`text-xs font-bold px-2 py-1 rounded-full ${
                     getStatus(session) === 'working' ? 'bg-blue-900/30 text-blue-400' :
@@ -141,18 +152,10 @@ const OrgChart: React.FC = () => {
               </tr>
             ))}
             {sessions.length === 0 && !loading && (
-              <tr>
-                <td colSpan={6} className="px-6 py-8 text-center text-gray-500">
-                  No active sessions.
-                </td>
-              </tr>
+              <tr><td colSpan={6} className="px-6 py-8 text-center text-gray-500">No active sessions.</td></tr>
             )}
             {loading && (
-              <tr>
-                <td colSpan={6} className="px-6 py-8 text-center text-gray-500">
-                  Loading sessions...
-                </td>
-              </tr>
+              <tr><td colSpan={6} className="px-6 py-8 text-center text-gray-500">Loading sessions...</td></tr>
             )}
           </tbody>
         </table>
