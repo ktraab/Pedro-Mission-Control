@@ -34,10 +34,13 @@ export interface LogEntry {
 
 export interface ApprovalItem {
   id: string;
-  type: 'tweet' | 'email' | 'deploy';
+  type: 'shell' | 'file-write' | 'git-push' | 'cron-create' | 'message-send' | 'webhook';
   content: string;
   requestedBy: string;
   status: 'pending' | 'approved' | 'rejected';
+  toolId?: string;
+  sessionKey?: string;
+  createdAt: string;
 }
 
 export interface CronJobState {

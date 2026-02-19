@@ -7,6 +7,7 @@ import fs from 'fs';
 const WORKSPACE = '/home/pedro-openclaw/.openclaw/workspace';
 const MEMORY_DIR = path.join(WORKSPACE, 'memory');
 const TASKS_FILE = path.join(WORKSPACE, 'kanban_tasks.json');
+const APPROVALS_FILE = path.join(WORKSPACE, 'approvals.json');
 
 export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, '.', '');
@@ -217,6 +218,76 @@ export default defineConfig(({ mode }) => {
               console.error('Spawn error:', e);
               res.statusCode = 500;
               res.end(JSON.stringify({ error: 'Failed to spawn agent', details: String(e) }));
+            }
+          });
+        } else {
+          res.statusCode = 405;
+          res.end(JSON.stringify({ error: 'Method not allowed' }));
+        }
+      });
+
+      // Approvals API for tool permission requests
+      server.middlewares.use('/api/approvals', async (req, res, next) => {
+        if (req.method === 'GET') {
+          try {
+            if (!fs.existsSync(APPROVALS_FILE)) {
+              fs.writeFileSync(APPROVALS_FILE, '[]');
+            }
+            const data = fs.readFileSync(APPROVALS_FILE, 'utf-8');
+            const approvals = JSON.parse(data);
+            // Filter to only pending by default
+            const pendingOnly = req.url?.includes('?status=pending');
+            const result = pendingOnly ? approvals.filter((a: any) => a.status === 'pending') : approvals;
+            res.setHeader('Content-Type', 'application/json');
+            res.end(JSON.stringify(result));
+          } catch {
+            res.statusCode = 500;
+            res.end(JSON.stringify({ error: 'Failed to read approvals' }));
+          }
+        } else if (req.method === 'POST') {
+          let body = '';
+          req.on('data', chunk => body += chunk);
+          req.on('end', () => {
+            try {
+              const data = JSON.parse(body || '{}');
+              const approvals = fs.existsSync(APPROVALS_FILE) 
+                ? JSON.parse(fs.readFileSync(APPROVALS_FILE, 'utf-8')) 
+                : [];
+              
+              if (data.action === 'create') {
+                const newApproval = {
+                  id: Date.now().toString(),
+                  type: data.type || 'shell',
+                  content: data.content || '',
+                  requestedBy: data.requestedBy || 'Console',
+                  status: 'pending',
+                  toolId: data.toolId,
+                  sessionKey: data.sessionKey,
+                  createdAt: new Date().toISOString()
+                };
+                approvals.push(newApproval);
+                fs.writeFileSync(APPROVALS_FILE, JSON.stringify(approvals, null, 2));
+                res.end(JSON.stringify(newApproval));
+              } else if (data.action === 'update' && data.id) {
+                const approval = approvals.find((a: any) => a.id === data.id);
+                if (approval) {
+                  approval.status = data.status;
+                  if (data.status === 'approved' || data.status === 'rejected') {
+                    approval.resolvedAt = new Date().toISOString();
+                  }
+                  fs.writeFileSync(APPROVALS_FILE, JSON.stringify(approvals, null, 2));
+                  res.end(JSON.stringify({ success: true, approval }));
+                } else {
+                  res.statusCode = 404;
+                  res.end(JSON.stringify({ error: 'Approval not found' }));
+                }
+              } else {
+                res.statusCode = 400;
+                res.end(JSON.stringify({ error: 'Invalid action' }));
+              }
+            } catch {
+              res.statusCode = 500;
+              res.end(JSON.stringify({ error: 'Failed to update approvals' }));
             }
           });
         } else {
